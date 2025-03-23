@@ -1,10 +1,245 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>$Title$</title>
-</head>
-<body>
-$END$
-</body>
-</html>
+{% extends "layout.html" %}
+
+{% block title %}Categorias{% endblock %}
+
+{% block styles %}
+<style>
+    .category-card {
+        transition: transform 0.2s ease;
+        margin-bottom: 20px;
+    }
+    .category-card:hover {
+        transform: translateY(-3px);
+    }
+    .category-color {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: inline-block;
+        vertical-align: middle;
+        margin-right: 10px;
+    }
+    .category-icon {
+        color: white;
+        font-size: 0.9rem;
+        text-align: center;
+        line-height: 30px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-tags me-2"></i> Categorias</h2>
+
+        <a href="{{ url_for('categories.create') }}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> Nova Categoria
+        </a>
+    </div>
+
+    <!-- Tabs para filtrar categorias -->
+    <ul class="nav nav-tabs mb-4" id="categoryTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="all-tab" data-bs-toggle="tab" data-bs-target="#all"
+                    type="button" role="tab" aria-selected="true">
+                Todas
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="expenses-tab" data-bs-toggle="tab" data-bs-target="#expenses"
+                    type="button" role="tab" aria-selected="false">
+                Despesas
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="income-tab" data-bs-toggle="tab" data-bs-target="#income"
+                    type="button" role="tab" aria-selected="false">
+                Receitas
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="categoryTabsContent">
+        <!-- Todas as categorias -->
+        <div class="tab-pane fade show active" id="all" role="tabpanel" aria-labelledby="all-tab">
+            <div class="row">
+                {% for category in categories %}
+                <div class="col-md-4">
+                    <div class="card category-card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title d-flex align-items-center">
+                                <span class="category-color" style="background-color: {{ category.color }}">
+                                    <span class="category-icon">
+                                        <i class="fas fa-{{ 'arrow-down' if category.is_expense else 'arrow-up' }}"></i>
+                                    </span>
+                                </span>
+                                {{ category.name }}
+                            </h5>
+
+                            <p class="card-text text-muted small">
+                                {{ category.description or 'Sem descrição' }}
+                            </p>
+
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="badge {{ 'bg-danger' if category.is_expense else 'bg-success' }}">
+                                    {{ 'Despesa' if category.is_expense else 'Receita' }}
+                                </span>
+                                <small class="text-muted">
+                                    {{ category.keywords.count() }} palavras-chave
+                                </small>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <div class="btn-group w-100">
+                                <a href="{{ url_for('categories.view', category_id=category.id) }}"
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i> Ver
+                                </a>
+                                <a href="{{ url_for('categories.edit', category_id=category.id) }}"
+                                   class="btn btn-sm btn-outline-secondary">
+                                    <i class="fas fa-edit"></i> Editar
+                                </a>
+                                <a href="{{ url_for('categories.manage_keywords', category_id=category.id) }}"
+                                   class="btn btn-sm btn-outline-info">
+                                    <i class="fas fa-key"></i> Palavras
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+
+                {% if not categories %}
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i> Nenhuma categoria encontrada.
+                        <a href="{{ url_for('categories.create') }}" class="alert-link">Crie sua primeira categoria</a>.
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Categorias de despesas -->
+        <div class="tab-pane fade" id="expenses" role="tabpanel" aria-labelledby="expenses-tab">
+            <div class="row">
+                {% set expense_categories = categories|selectattr('is_expense', 'equalto', true)|list %}
+
+                {% for category in expense_categories %}
+                <div class="col-md-4">
+                    <div class="card category-card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title d-flex align-items-center">
+                                <span class="category-color" style="background-color: {{ category.color }}">
+                                    <span class="category-icon">
+                                        <i class="fas fa-arrow-down"></i>
+                                    </span>
+                                </span>
+                                {{ category.name }}
+                            </h5>
+
+                            <p class="card-text text-muted small">
+                                {{ category.description or 'Sem descrição' }}
+                            </p>
+
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="badge bg-danger">Despesa</span>
+                                <small class="text-muted">
+                                    {{ category.keywords.count() }} palavras-chave
+                                </small>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <div class="btn-group w-100">
+                                <a href="{{ url_for('categories.view', category_id=category.id) }}"
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i> Ver
+                                </a>
+                                <a href="{{ url_for('categories.edit', category_id=category.id) }}"
+                                   class="btn btn-sm btn-outline-secondary">
+                                    <i class="fas fa-edit"></i> Editar
+                                </a>
+                                <a href="{{ url_for('categories.manage_keywords', category_id=category.id) }}"
+                                   class="btn btn-sm btn-outline-info">
+                                    <i class="fas fa-key"></i> Palavras
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+
+                {% if not expense_categories %}
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i> Nenhuma categoria de despesa encontrada.
+                        <a href="{{ url_for('categories.create') }}" class="alert-link">Crie sua primeira categoria de despesa</a>.
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Categorias de receitas -->
+        <div class="tab-pane fade" id="income" role="tabpanel" aria-labelledby="income-tab">
+            <div class="row">
+                {% set income_categories = categories|selectattr('is_expense', 'equalto', false)|list %}
+
+                {% for category in income_categories %}
+                <div class="col-md-4">
+                    <div class="card category-card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title d-flex align-items-center">
+                                <span class="category-color" style="background-color: {{ category.color }}">
+                                    <span class="category-icon">
+                                        <i class="fas fa-arrow-up"></i>
+                                    </span>
+                                </span>
+                                {{ category.name }}
+                            </h5>
+
+                            <p class="card-text text-muted small">
+                                {{ category.description or 'Sem descrição' }}
+                            </p>
+
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="badge bg-success">Receita</span>
+                                <small class="text-muted">
+                                    {{ category.keywords.count() }} palavras-chave
+                                </small>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <div class="btn-group w-100">
+                                <a href="{{ url_for('categories.view', category_id=category.id) }}"
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i> Ver
+                                </a>
+                                <a href="{{ url_for('categories.edit', category_id=category.id) }}"
+                                   class="btn btn-sm btn-outline-secondary">
+                                    <i class="fas fa-edit"></i> Editar
+                                </a>
+                                <a href="{{ url_for('categories.manage_keywords', category_id=category.id) }}"
+                                   class="btn btn-sm btn-outline-info">
+                                    <i class="fas fa-key"></i> Palavras
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+
+                {% if not income_categories %}
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i> Nenhuma categoria de receita encontrada.
+                        <a href="{{ url_for('categories.create') }}" class="alert-link">Crie sua primeira categoria de receita</a>.
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

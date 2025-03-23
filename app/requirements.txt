@@ -1,0 +1,32 @@
+# Framework web
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# Extensões Flask
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.5
+Flask-Login==0.6.3
+Flask-WTF==1.2.1
+Flask-Bootstrap5==0.1.1
+Flask-Babel==3.1.0
+
+# Banco de dados
+SQLAlchemy==2.0.25
+alembic==1.12.1
+
+# Processamento OFX
+ofxparse==0.21
+
+# Visualização e Análise de dados
+matplotlib==3.8.2
+pandas==2.1.4
+seaborn==0.13.1
+numpy==1.26.3
+
+# Segurança
+email-validator==2.1.0
+python-dotenv==1.0.0
+
+# Utilitários
+Pillow==10.1.0
+pytz==2023.3

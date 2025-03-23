@@ -1,10 +1,195 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>$Title$</title>
-</head>
-<body>
-$END$
-</body>
-</html>
+{% extends "layout.html" %}
+
+{% block title %}Transações{% endblock %}
+
+{% block styles %}
+<style>
+    .table-responsive {
+        overflow-x: auto;
+    }
+    .transaction-row {
+        cursor: pointer;
+    }
+    .transaction-row:hover {
+        background-color: rgba(0, 0, 0, 0.03);
+    }
+    .transaction-row.reconciled {
+        background-color: rgba(40, 167, 69, 0.05);
+    }
+    .filter-card {
+        border-radius: 0.5rem;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    .amount-positive {
+        color: #28a745;
+        font-weight: bold;
+    }
+    .amount-negative {
+        color: #dc3545;
+        font-weight: bold;
+    }
+    .category-badge {
+        font-size: 0.85rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-exchange-alt me-2"></i> Transações</h2>
+        
+        <div class="btn-group">
+            <a href="{{ url_for('transactions.upload') }}" class="btn btn-primary">
+                <i class="fas fa-upload me-1"></i> Importar OFX
+            </a>
+            <a href="{{ url_for('transactions.recategorize_all') }}" class="btn btn-secondary">
+                <i class="fas fa-tags me-1"></i> Recategorizar
+            </a>
+        </div>
+    </div>
+    
+    <!-- Filtros -->
+    <div class="card filter-card mb-4">
+        <div class="card-body">
+            <form method="get" action="{{ url_for('transactions.index') }}" class="row g-3">
+                <div class="col-md-4">
+                    {{ form.year.label(class="form-label") }}
+                    {{ form.year(class="form-select") }}
+                </div>
+                <div class="col-md-4">
+                    {{ form.month.label(class="form-label") }}
+                    {{ form.month(class="form-select") }}
+                </div>
+                <div class="col-md-4">
+                    {{ form.category.label(class="form-label") }}
+                    {{ form.category(class="form-select") }}
+                </div>
+                <div class="col-12 text-end">
+                    {{ form.submit(class="btn btn-primary") }}
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Transações -->
+    <div class="card">
+        <div class="card-header bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    {% if month %}
+                        Transações de {{ form.month.choices[month][1] }}/{{ year }}
+                    {% else %}
+                        Transações de {{ year }}
+                    {% endif %}
+                </h5>
+                <span class="badge bg-primary">{{ transactions|length }} transações</span>
+            </div>
+        </div>
+        
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Descrição</th>
+                            <th>Categoria</th>
+                            <th class="text-end">Valor</th>
+                            <th class="text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if transactions %}
+                            {% for tx in transactions %}
+                            <tr class="transaction-row {% if tx.is_reconciled %}reconciled{% endif %}" 
+                                data-id="{{ tx.id }}">
+                                <td>{{ tx.date.strftime('%d/%m/%Y') }}</td>
+                                <td>
+                                    {{ tx.description }}
+                                    {% if tx.notes %}
+                                    <br><small class="text-muted">{{ tx.notes }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if tx.category %}
+                                    <span class="badge category-badge" 
+                                          style="background-color: {{ tx.category.color }}">
+                                        {{ tx.category.name }}
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Sem Categoria</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end {% if tx.amount > 0 %}amount-positive{% else %}amount-negative{% endif %}">
+                                    R$ {{ "%.2f"|format(tx.amount) }}
+                                </td>
+                                <td class="text-center">
+                                    <a href="{{ url_for('transactions.edit', transaction_id=tx.id) }}" 
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center py-3">
+                                    Nenhuma transação encontrada para o período selecionado.
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        {% if transactions %}
+        <div class="card-footer">
+            <div class="row">
+                <div class="col-md-4">
+                    <strong>Total de Receitas:</strong> 
+                    <span class="amount-positive">
+                        R$ {{ "%.2f"|format(transactions|selectattr('amount', 'gt', 0)|map(attribute='amount')|sum) }}
+                    </span>
+                </div>
+                <div class="col-md-4">
+                    <strong>Total de Despesas:</strong> 
+                    <span class="amount-negative">
+                        R$ {{ "%.2f"|format(transactions|selectattr('amount', 'lt', 0)|map(attribute='amount')|sum|abs) }}
+                    </span>
+                </div>
+                <div class="col-md-4">
+                    <strong>Saldo:</strong> 
+                    {% set balance = transactions|map(attribute='amount')|sum %}
+                    <span class="{% if balance > 0 %}amount-positive{% else %}amount-negative{% endif %}">
+                        R$ {{ "%.2f"|format(balance) }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Redirecionamento para edição ao clicar na linha
+    const rows = document.querySelectorAll('.transaction-row');
+    rows.forEach(row => {
+        row.addEventListener('click', function(e) {
+            // Ignorar se clicou no botão de editar
+            if (e.target.tagName === 'I' || e.target.tagName === 'A' || 
+                e.target.closest('a') || e.target.closest('button')) {
+                return;
+            }
+            
+            const id = this.dataset.id;
+            window.location.href = "{{ url_for('transactions.edit', transaction_id=0) }}".replace('0', id);
+        });
+    });
+});
+</script>
+{% endblock %}

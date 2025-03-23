@@ -1,10 +1,59 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>$Title$</title>
-</head>
-<body>
-$END$
-</body>
-</html>
+{% extends "layout.html" %}
+
+{% block title %}Importar OFX{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-upload me-2"></i> Importar Arquivo OFX</h4>
+                </div>
+
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i> Importe um arquivo OFX do seu banco para analisar suas transações financeiras.
+                    </div>
+
+                    <form method="post" enctype="multipart/form-data">
+                        {{ form.hidden_tag() }}
+
+                        <div class="mb-4">
+                            {{ form.file.label(class="form-label fw-bold") }}
+                            {{ form.file(class="form-control", accept=".ofx") }}
+
+                            {% if form.file.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.file.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+
+                            <small class="form-text text-muted">
+                                Apenas arquivos com extensão .ofx são aceitos.
+                            </small>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            {{ form.submit(class="btn btn-primary") }}
+                            <a href="{{ url_for('transactions.index') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card-footer bg-light">
+                    <h5>Como conseguir um arquivo OFX?</h5>
+                    <ol class="mb-0">
+                        <li>Acesse o site ou aplicativo do seu banco</li>
+                        <li>Procure a opção "Extrato" ou "Exportar transações"</li>
+                        <li>Selecione o formato "OFX" ou "Open Financial Exchange"</li>
+                        <li>Escolha o período desejado e faça o download</li>
+                        <li>Importe o arquivo baixado usando este formulário</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

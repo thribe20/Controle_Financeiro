@@ -1,10 +1,212 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>$Title$</title>
-</head>
-<body>
-$END$
-</body>
-</html>
+{% extends "layout.html" %}
+
+{% block title %}Relatórios{% endblock %}
+
+{% block styles %}
+<style>
+    .report-card {
+        transition: transform 0.2s;
+        margin-bottom: 20px;
+    }
+    .report-card:hover {
+        transform: translateY(-5px);
+    }
+    .report-icon {
+        font-size: 2.5rem;
+        color: #6c757d;
+        margin-bottom: 15px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-chart-bar me-2"></i> Relatórios</h2>
+
+        <div class="btn-group">
+            <a href="{{ url_for('reports.export_csv', year=year) }}" class="btn btn-success">
+                <i class="fas fa-file-excel me-1"></i> Exportar CSV
+            </a>
+        </div>
+    </div>
+
+    <!-- Formulário de filtro -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" action="{{ url_for('reports.index') }}" class="row g-3">
+                <div class="col-md-6">
+                    {{ form.year.label(class="form-label") }}
+                    {{ form.year(class="form-select") }}
+                </div>
+                <div class="col-md-6">
+                    {{ form.month.label(class="form-label") }}
+                    {{ form.month(class="form-select") }}
+                </div>
+                <div class="col-12 text-end">
+                    {{ form.submit(class="btn btn-primary") }}
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Cards de relatórios -->
+    <div class="row">
+        <!-- Despesas Mensais -->
+        <div class="col-md-6">
+            <div class="card report-card h-100">
+                <div class="card-body text-center">
+                    <div class="report-icon">
+                        <i class="fas fa-chart-column"></i>
+                    </div>
+                    <h5 class="card-title">Despesas Mensais</h5>
+                    <p class="card-text text-muted">
+                        Visualize suas despesas mensais categorizadas ao longo do tempo.
+                    </p>
+                    <a href="#" class="btn btn-primary view-report" data-report="monthly-expenses" data-year="{{ year }}">
+                        Visualizar Relatório
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Distribuição por Categoria -->
+        <div class="col-md-6">
+            <div class="card report-card h-100">
+                <div class="card-body text-center">
+                    <div class="report-icon">
+                        <i class="fas fa-chart-pie"></i>
+                    </div>
+                    <h5 class="card-title">Distribuição por Categoria</h5>
+                    <p class="card-text text-muted">
+                        Veja como suas despesas estão distribuídas entre as diferentes categorias.
+                    </p>
+                    <a href="#" class="btn btn-primary view-report" data-report="category-breakdown" data-year="{{ year }}" data-month="{{ request.args.get('month', '0') }}">
+                        Visualizar Relatório
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Receitas vs Despesas -->
+        <div class="col-md-6">
+            <div class="card report-card h-100">
+                <div class="card-body text-center">
+                    <div class="report-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <h5 class="card-title">Receitas vs Despesas</h5>
+                    <p class="card-text text-muted">
+                        Compare suas receitas e despesas ao longo do tempo.
+                    </p>
+                    <a href="#" class="btn btn-primary view-report" data-report="income-vs-expenses" data-year="{{ year }}">
+                        Visualizar Relatório
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resumo Detalhado -->
+        <div class="col-md-6">
+            <div class="card report-card h-100">
+                <div class="card-body text-center">
+                    <div class="report-icon">
+                        <i class="fas fa-table"></i>
+                    </div>
+                    <h5 class="card-title">Resumo Detalhado</h5>
+                    <p class="card-text text-muted">
+                        Veja um resumo detalhado de suas finanças com tabelas e gráficos.
+                    </p>
+                    <a href="{{ url_for('reports.summary', year=year) }}" class="btn btn-primary">
+                        Visualizar Relatório
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para visualização de relatórios -->
+    <div class="modal fade" id="reportModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="reportModalLabel">Visualização de Relatório</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div class="spinner-border text-primary mb-4" role="status" id="reportLoading">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <img id="reportImage" class="img-fluid d-none" alt="Relatório">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Evento para botões de visualização de relatório
+    const reportButtons = document.querySelectorAll('.view-report');
+    const reportModal = new bootstrap.Modal(document.getElementById('reportModal'));
+    const reportImage = document.getElementById('reportImage');
+    const reportLoading = document.getElementById('reportLoading');
+    const modalTitle = document.getElementById('reportModalLabel');
+
+    reportButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+
+            // Obter dados do relatório
+            const reportType = this.dataset.report;
+            const year = this.dataset.year;
+            const month = this.dataset.month || null;
+
+            // Mostrar modal com spinner
+            reportImage.classList.add('d-none');
+            reportLoading.classList.remove('d-none');
+
+            // Definir título do modal
+            switch(reportType) {
+                case 'monthly-expenses':
+                    modalTitle.textContent = `Despesas Mensais (${year})`;
+                    break;
+                case 'category-breakdown':
+                    const monthText = month && month != '0' ?
+                        ` - Mês ${month}` : '';
+                    modalTitle.textContent = `Distribuição por Categoria (${year}${monthText})`;
+                    break;
+                case 'income-vs-expenses':
+                    modalTitle.textContent = `Receitas vs Despesas (${year})`;
+                    break;
+                default:
+                    modalTitle.textContent = 'Visualização de Relatório';
+            }
+
+            // Mostrar modal
+            reportModal.show();
+
+            // Construir URL
+            let url = `{{ url_for('reports.index') }}../${reportType}?year=${year}`;
+            if (month && month != '0') {
+                url += `&month=${month}`;
+            }
+
+            // Atualizar imagem quando carregar
+            reportImage.onload = function() {
+                reportLoading.classList.add('d-none');
+                reportImage.classList.remove('d-none');
+            };
+
+            // Carregar imagem
+            reportImage.src = url;
+        });
+    });
+});
+</script>
+{% endblock %}

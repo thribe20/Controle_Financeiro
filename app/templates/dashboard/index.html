@@ -1,10 +1,211 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>$Title$</title>
-</head>
-<body>
-$END$
-</body>
-</html>
+{% extends "layout.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">
+        <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+    </h2>
+    
+    <!-- Resumo financeiro do mês atual -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card border-success h-100">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Receitas</h5>
+                    <p class="card-text display-6 text-success">
+                        R$ {{ "%.2f"|format(income) }}
+                    </p>
+                    <small class="text-muted">{{ current_month }}/{{ current_year }}</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card border-danger h-100">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Despesas</h5>
+                    <p class="card-text display-6 text-danger">
+                        R$ {{ "%.2f"|format(expenses) }}
+                    </p>
+                    <small class="text-muted">{{ current_month }}/{{ current_year }}</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card border-{{ 'success' if balance >= 0 else 'danger' }} h-100">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Saldo</h5>
+                    <p class="card-text display-6 text-{{ 'success' if balance >= 0 else 'danger' }}">
+                        R$ {{ "%.2f"|format(balance) }}
+                    </p>
+                    <small class="text-muted">{{ current_month }}/{{ current_year }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Informações da conta e estatísticas -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-info-circle me-2"></i> Informações
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-6">Total de Transações:</div>
+                        <div class="col-6 text-end fw-bold">{{ total_transactions }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">Transações Categorizadas:</div>
+                        <div class="col-6 text-end fw-bold">{{ categorized_transactions }}</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">Taxa de Categorização:</div>
+                        <div class="col-6 text-end fw-bold">{{ "%.1f"|format(categorization_rate) }}%</div>
+                    </div>
+                    
+                    <div class="progress mt-3">
+                        <div class="progress-bar" 
+                             role="progressbar" 
+                             style="width: {{ categorization_rate }}%;"
+                             aria-valuenow="{{ categorization_rate }}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100">
+                            {{ "%.1f"|format(categorization_rate) }}%
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-footer bg-white">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('transactions.upload') }}" class="btn btn-primary">
+                            <i class="fas fa-upload me-2"></i> Importar Arquivo OFX
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chart-line me-2"></i> Receitas vs Despesas
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="incomeExpensesChart" height="220"></canvas>
+                </div>
+                <div class="card-footer bg-white">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('reports.index') }}" class="btn btn-info">
+                            <i class="fas fa-chart-bar me-2"></i> Ver Todos os Relatórios
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Gráficos -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chart-bar me-2"></i> Despesas Mensais por Categoria
+                    </h5>
+                </div>
+                <div class="card-body text-center">
+                    <img id="expenseChart" class="img-fluid" alt="Gráfico de Despesas" 
+                         src="{{ url_for('dashboard.get_chart', chart_type='expenses', year=current_year) }}">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chart-pie me-2"></i> Distribuição de Despesas por Categoria
+                    </h5>
+                </div>
+                <div class="card-body text-center">
+                    <img id="categoryBreakdownChart" class="img-fluid" alt="Gráfico de Distribuição por Categoria" 
+                         src="{{ url_for('dashboard.get_chart', chart_type='category_breakdown', year=current_year, month=current_month) }}">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Buscar dados para o gráfico de linha
+    fetch("{{ url_for('dashboard.get_stats', year=current_year) }}")
+        .then(response => response.json())
+        .then(data => {
+            // Criar gráfico de linha para receitas vs despesas
+            const ctx = document.getElementById('incomeExpensesChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [
+                        {
+                            label: 'Receitas',
+                            data: data.income,
+                            backgroundColor: 'rgba(40, 167, 69, 0.2)',
+                            borderColor: 'rgba(40, 167, 69, 1)',
+                            borderWidth: 2,
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Despesas',
+                            data: data.expenses,
+                            backgroundColor: 'rgba(220, 53, 69, 0.2)',
+                            borderColor: 'rgba(220, 53, 69, 1)',
+                            borderWidth: 2,
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return 'R$ ' + value.toFixed(2);
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': R$ ' + context.raw.toFixed(2);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        })
+        .catch(error => console.error('Erro ao carregar dados do gráfico:', error));
+});
+</script>
+{% endblock %}

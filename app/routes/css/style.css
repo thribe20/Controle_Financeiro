@@ -1,0 +1,178 @@
+/* Estilos personalizados para FinançasWeb */
+
+/* Cores da aplicação */
+:root {
+    --primary-color: #3498db;
+    --secondary-color: #2c3e50;
+    --success-color: #2ecc71;
+    --danger-color: #e74c3c;
+    --warning-color: #f39c12;
+    --info-color: #3498db;
+    --light-color: #ecf0f1;
+    --dark-color: #2c3e50;
+}
+
+/* Estilos gerais */
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: #f5f5f5;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Navbar personalizada */
+.navbar {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.navbar-brand {
+    font-weight: 700;
+    font-size: 1.4rem;
+}
+
+/* Cards com sombra leve e bordas arredondadas */
+.card {
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    border: none;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+}
+
+.card-header {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    background-color: #fff;
+    font-weight: 600;
+}
+
+/* Botões com cantos mais arredondados */
+.btn {
+    border-radius: 0.4rem;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+    background-color: #2980b9;
+    border-color: #2980b9;
+}
+
+/* Estilos para tabelas */
+.table th {
+    font-weight: 600;
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(52, 152, 219, 0.05);
+}
+
+/* Badges personalizados */
+.badge {
+    font-weight: 500;
+    padding: 0.35em 0.65em;
+    border-radius: 0.4rem;
+}
+
+/* Estilos para alertas */
+.alert {
+    border: none;
+    border-radius: 0.4rem;
+    padding: 1rem;
+}
+
+/* Estilos para formulários */
+.form-control, .form-select {
+    border-radius: 0.4rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ced4da;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+/* Footer personalizado */
+.footer {
+    background-color: #f8f9fa;
+    padding: 1.5rem 0;
+    border-top: 1px solid #e9ecef;
+}
+
+/* Classes para valores monetários */
+.money-positive {
+    color: var(--success-color);
+    font-weight: 600;
+}
+
+.money-negative {
+    color: var(--danger-color);
+    font-weight: 600;
+}
+
+/* Utilitários */
+.avatar {
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.text-small {
+    font-size: 0.875rem;
+}
+
+.icon-large {
+    font-size: 2rem;
+}
+
+/* Estilos para Dashboard */
+.dashboard-card {
+    min-height: 150px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.dashboard-value {
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+/* Animações */
+.fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Estilos responsivos */
+@media (max-width: 768px) {
+    .container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .dashboard-value {
+        font-size: 1.5rem;
+    }
+
+    .card-title {
+        font-size: 1.1rem;
+    }
+}
