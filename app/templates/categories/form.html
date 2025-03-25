@@ -1,0 +1,84 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block styles %}
+<!-- ColorPicker CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-colorpicker/3.2.0/css/bootstrap-colorpicker.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{{ title }}</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {{ form.hidden_tag() }}
+
+                        <div class="form-group">
+                            {{ form.name.label }}
+                            {{ form.name(class="form-control") }}
+                            {% if form.name.errors %}
+                                {% for error in form.name.errors %}
+                                <div class="text-danger">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group">
+                            {{ form.description.label }}
+                            {{ form.description(class="form-control", rows=3) }}
+                            {% if form.description.errors %}
+                                {% for error in form.description.errors %}
+                                <div class="text-danger">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group">
+                            {{ form.color.label }}
+                            <div class="input-group colorpicker-component">
+                                {{ form.color(class="form-control") }}
+                                <div class="input-group-append">
+                                    <span class="input-group-text"><i></i></span>
+                                </div>
+                            </div>
+                            {% if form.color.errors %}
+                                {% for error in form.color.errors %}
+                                <div class="text-danger">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group">
+                            <div class="custom-control custom-checkbox">
+                                {{ form.is_expense(class="custom-control-input") }}
+                                {{ form.is_expense.label(class="custom-control-label") }}
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <a href="{{ url_for('categories.index') }}" class="btn btn-secondary">Cancelar</a>
+                            {{ form.submit(class="btn btn-primary") }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Bootstrap ColorPicker -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-colorpicker/3.2.0/js/bootstrap-colorpicker.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $('.colorpicker-component').colorpicker();
+    });
+</script>
+{% endblock %}

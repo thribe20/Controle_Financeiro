@@ -1,0 +1,66 @@
+/* Estilos personalizados para FinançasWeb */
+
+body {
+    background-color: #f8f9fa;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+}
+
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border-radius: 0.5rem;
+    border: none;
+}
+
+.card-header {
+    background-color: rgba(0, 123, 255, 0.1);
+    border-bottom: 1px solid rgba(0, 123, 255, 0.2);
+}
+
+/* Estilos para tabelas */
+.table th {
+    background-color: #f8f9fa;
+    border-top: none;
+}
+
+/* Cores para valores positivos e negativos */
+.text-success {
+    font-weight: 600;
+}
+
+.text-danger {
+    font-weight: 600;
+}
+
+/* Estilização para o dropdown de categorias */
+.category-select {
+    min-width: 160px;
+}
+
+/* Estilização para cards do dashboard */
+.dashboard-card {
+    transition: transform 0.2s;
+}
+
+.dashboard-card:hover {
+    transform: translateY(-5px);
+}
+
+/* Indicadores de valores */
+.value-indicator {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.indicator-label {
+    color: #6c757d;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}

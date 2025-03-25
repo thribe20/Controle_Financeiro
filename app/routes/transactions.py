@@ -1,189 +1,183 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
-from flask_login import login_required, current_user
-from app import db
-from app.models.transaction import Transaction
-from app.models.category import Category
-from app.services.transaction_service import TransactionService
-from app.services.category_service import CategoryService
-from app.services.ofx_parser import OFXImportService
-from app.forms.transaction_forms import TransactionFilterForm, TransactionEditForm, UploadForm
-from sqlalchemy import extract
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
+import os
 from datetime import datetime
+from werkzeug.utils import secure_filename
+from app import db
+from app.models import Transaction, Category, CategoryKeyword
+from app.forms import UploadForm
+from app.services import import_ofx, categorize_transaction
 
-bp = Blueprint('transactions', __name__, url_prefix='/transactions')
-
-
-@bp.route('/')
-@login_required
-def index():
-    """Lista de transações com filtros"""
-    # Configuração do formulário de filtro
-    form = TransactionFilterForm()
-
-    # Preencher opções de categorias
-    categories = Category.query.filter_by(user_id=current_user.id).order_by(Category.name).all()
-    form.category.choices = [(0, 'Todas as Categorias')] + [(c.id, c.name) for c in categories]
-
-    # Obter parâmetros de filtro da URL
-    year = request.args.get('year', type=int)
-    month = request.args.get('month', type=int)
-    category_id = request.args.get('category', type=int)
-
-    # Configurar valores padrão
-    if not year:
-        year = datetime.now().year
-
-    # Aplicar valores aos campos do formulário
-    form.year.data = year
-    if month:
-        form.month.data = month
-    if category_id:
-        form.category.data = category_id
-
-    # Obter transações filtradas
-    tx_service = TransactionService(current_user)
-    transactions = tx_service.get_by_period(year, month, category_id if category_id and category_id > 0 else None)
-
-    return render_template(
-        'transactions/index.html',
-        title='Transações',
-        form=form,
-        transactions=transactions,
-        year=year,
-        month=month
-    )
+transaction_bp = Blueprint('transactions', __name__, url_prefix='/transactions')
 
 
-@bp.route('/upload', methods=['GET', 'POST'])
-@login_required
-def upload():
-    """Importação de arquivo OFX"""
-    form = UploadForm()
-
-    if form.validate_on_submit():
-        try:
-            # Importar arquivo
-            ofx_service = OFXImportService(current_user)
-            transactions_count = ofx_service.import_transactions(form.file.data)
-
-            flash(f'Arquivo importado com sucesso! {transactions_count} novas transações adicionadas.', 'success')
-            return redirect(url_for('transactions.index'))
-        except ValueError as e:
-            flash(f'Erro ao importar arquivo: {str(e)}', 'danger')
-        except Exception as e:
-            flash(f'Erro inesperado ao processar o arquivo: {str(e)}', 'danger')
-
-    return render_template('transactions/upload.html', title='Importar OFX', form=form)
-
-
-@bp.route('/edit/<int:transaction_id>', methods=['GET', 'POST'])
-@login_required
-def edit(transaction_id):
-    """Edição de transação"""
-    # Buscar a transação
-    tx_service = TransactionService(current_user)
-    transaction = tx_service.get_by_id(transaction_id)
-
-    if not transaction:
-        flash('Transação não encontrada.', 'danger')
-        return redirect(url_for('transactions.index'))
-
-    # Configurar formulário
-    form = TransactionEditForm()
-
-    # Preencher opções de categorias
-    categories = Category.query.filter_by(user_id=current_user.id).order_by(Category.name).all()
-    form.category_id.choices = [(0, 'Sem Categoria')] + [(c.id, c.name) for c in categories]
-
-    if form.validate_on_submit():
-        # Atualizar categoria
-        category_id = form.category_id.data if form.category_id.data > 0 else None
-        tx_service.update_category(transaction_id, category_id)
-
-        # Atualizar observações
-        tx_service.update_notes(transaction_id, form.notes.data)
-
-        # Atualizar status de reconciliação
-        tx_service.reconcile(transaction_id, form.is_reconciled.data)
-
-        flash('Transação atualizada com sucesso!', 'success')
-        return redirect(url_for('transactions.index', year=transaction.year, month=transaction.month))
-    elif request.method == 'GET':
-        # Preencher formulário com dados da transação
-        form.category_id.data = transaction.category_id if transaction.category_id else 0
-        form.notes.data = transaction.notes
-        form.is_reconciled.data = transaction.is_reconciled
-
-    return render_template(
-        'transactions/edit.html',
-        title='Editar Transação',
-        form=form,
-        transaction=transaction
-    )
-
-
-@bp.route('/recategorize')
-@login_required
-def recategorize_all():
-    """Recategoriza todas as transações"""
-    tx_service = TransactionService(current_user)
-    count = tx_service.auto_categorize_all(recategorize_all=True)
-
-    flash(f'{count} transações foram recategorizadas com sucesso!', 'success')
-    return redirect(url_for('transactions.index'))
-
-
-@bp.route('/api/list')
-@login_required
-def api_list():
-    """API endpoint para listar transações (usado para AJAX)"""
-    # Obter parâmetros
+@transaction_bp.route('/')
+@transaction_bp.route('/')
+def list_transactions():
+    """Lista todas as transações com filtros"""
+    # Obter parâmetros de filtro
     year = request.args.get('year', type=int)
     month = request.args.get('month', type=int)
     category_id = request.args.get('category_id', type=int)
 
-    # Configurar valores padrão
-    if not year:
-        year = datetime.now().year
+    # Construir query
+    query = Transaction.query
 
-    # Obter transações filtradas
-    tx_service = TransactionService(current_user)
-    transactions = tx_service.get_by_period(year, month, category_id if category_id and category_id > 0 else None)
+    # Aplicar filtros
+    if year is not None:
+        query = query.filter(Transaction.year == year)
 
-    # Converter para lista de dicionários
-    result = []
-    for tx in transactions:
-        category_name = tx.category.name if tx.category else 'Sem Categoria'
-        result.append({
-            'id': tx.id,
-            'date': tx.date.strftime('%d/%m/%Y'),
-            'description': tx.description,
-            'amount': float(tx.amount),
-            'category': category_name,
-            'is_reconciled': tx.is_reconciled
-        })
+    if month is not None:
+        query = query.filter(Transaction.month == month)
 
-    return jsonify({'transactions': result})
+    if category_id is not None:
+        if category_id == -1:  # Sem categoria
+            query = query.filter(Transaction.category_id == None)
+        else:
+            query = query.filter(Transaction.category_id == category_id)
+
+    # Executar query
+    transactions = query.order_by(Transaction.date.desc()).all()
+
+    # Adicione print para debug
+    print(f"Filtros aplicados: ano={year}, mês={month}, categoria={category_id}")
+    print(f"Total de transações após filtros: {len(transactions)}")
+
+    # Obter todas as categorias para o formulário de filtro
+    categories = Category.query.order_by(Category.name).all()
+
+    # Obter anos e meses únicos para o filtro
+    years = db.session.query(Transaction.year).distinct().order_by(Transaction.year.desc()).all()
+    years = [y[0] for y in years]
+
+    # Se não houver anos nos dados, use o ano atual
+    if not years:
+        years = [datetime.now().year]
+
+    return render_template('transactions/list.html',
+                           transactions=transactions,
+                           categories=categories,
+                           years=years,
+                           selected_year=year,
+                           selected_month=month,
+                           selected_category=category_id)
 
 
-@bp.route('/api/update-category', methods=['POST'])
-@login_required
-def api_update_category():
-    """API endpoint para atualizar categoria (usado para AJAX)"""
-    # Obter dados do JSON
-    data = request.get_json()
+@transaction_bp.route('/upload', methods=['GET', 'POST'])
+def upload():
+    # código existente
+    pass
 
-    if not data or 'transaction_id' not in data or 'category_id' not in data:
-        return jsonify({'success': False, 'message': 'Dados inválidos'}), 400
 
-    transaction_id = data['transaction_id']
-    category_id = data['category_id'] if data['category_id'] > 0 else None
+@transaction_bp.route('/<int:id>/category', methods=['POST'])
+def update_category(id):
+    # código existente
+    pass
 
-    # Atualizar categoria
-    tx_service = TransactionService(current_user)
-    success = tx_service.update_category(transaction_id, category_id)
 
-    if success:
-        return jsonify({'success': True})
+# Adicione a nova rota de recategorização como uma função separada no nível principal
+@transaction_bp.route('/recategorize')
+def recategorize_all():
+    """Recategoriza todas as transações sem categoria"""
+    transactions = Transaction.query.filter_by(category_id=None).all()
+    print(f"Encontradas {len(transactions)} transações sem categoria")
+
+    count = 0
+    for transaction in transactions:
+        print(f"\n--- Transação: {transaction.description} ---")
+        # Verificar categorias disponíveis
+        is_expense = transaction.amount < 0
+        categories = Category.query.filter_by(is_expense=is_expense).all()
+        print(f"Categorias disponíveis ({len(categories)}):")
+        for cat in categories:
+            keywords = CategoryKeyword.query.filter_by(category_id=cat.id).all()
+            print(f"  - {cat.name} ({len(keywords)} palavras-chave)")
+            for kw in keywords:
+                print(f"    * '{kw.keyword}' ({kw.match_type})")
+
+                # Testar manualmente cada palavra-chave
+                if kw.match_type == 'exact':
+                    if kw.keyword.lower() == transaction.description.lower():
+                        print(f"    >>> MATCH EXACT ENCONTRADO!")
+                else:  # 'contains'
+                    if kw.keyword.lower() in transaction.description.lower():
+                        print(f"    >>> MATCH CONTAINS ENCONTRADO!")
+
+        # Agora tente categorizar
+        success = categorize_transaction(transaction)
+        if success:
+            count += 1
+            print(f">>> Transação categorizada com sucesso: {transaction.category.name}")
+        else:
+            print(">>> Transação não foi categorizada")
+
+    # Salvar alterações
+    db.session.commit()
+
+    flash(f'{count} transações foram categorizadas automaticamente.', 'success')
+    return redirect(url_for('transactions.list_transactions'))
+
+
+# Adicione aqui as outras rotas de diagnóstico
+@transaction_bp.route('/debug_keywords')
+def debug_keywords():
+    """Depura palavras-chave e seus tipos de correspondência"""
+    # Busca todas as palavras-chave
+    keywords = CategoryKeyword.query.all()
+    output = []
+
+    for keyword in keywords:
+        # Tenta acessar o atributo match_type
+        try:
+            match_type = keyword.match_type
+            category = Category.query.get(keyword.category_id)
+            category_name = category.name if category else "Desconhecida"
+            output.append(f"Palavra-chave: '{keyword.keyword}', Tipo: '{match_type}', Categoria: {category_name}")
+        except Exception as e:
+            output.append(f"Erro ao acessar match_type: {str(e)}")
+
+    if not output:
+        output.append("Nenhuma palavra-chave encontrada.")
+
+    # Retorna como texto simples
+    return "<br>".join(output)
+
+
+@transaction_bp.route('/test_match/<int:transaction_id>/<int:keyword_id>')
+def test_match(transaction_id, keyword_id):
+    """Testa especificamente uma palavra-chave em uma transação"""
+    transaction = Transaction.query.get_or_404(transaction_id)
+    keyword = CategoryKeyword.query.get_or_404(keyword_id)
+
+    output = []
+    output.append(f"Transação: {transaction.description}")
+    output.append(f"Palavra-chave: {keyword.keyword}")
+
+    try:
+        match_type = keyword.match_type
+        output.append(f"Tipo de correspondência: {match_type}")
+    except Exception as e:
+        output.append(f"Erro ao acessar match_type: {str(e)}")
+        return "<br>".join(output)
+
+    # Teste de 'contém'
+    transaction_lower = transaction.description.lower()
+    keyword_lower = keyword.keyword.lower()
+
+    output.append(f"Transação (lower): '{transaction_lower}'")
+    output.append(f"Palavra-chave (lower): '{keyword_lower}'")
+
+    if keyword_lower in transaction_lower:
+        output.append("<b style='color:green'>MATCH ENCONTRADO!</b>")
+        # Tenta categorizar
+        transaction.category_id = keyword.category_id
+        db.session.commit()
+        output.append(f"Transação categorizada como {keyword.category.name}")
     else:
-        return jsonify({'success': False, 'message': 'Falha ao atualizar categoria'}), 400
+        output.append("<b style='color:red'>NÃO HÁ CORRESPONDÊNCIA</b>")
+        # Tenta visualizar caracteres exatos
+        output.append("Códigos ASCII da transação:")
+        output.append(" ".join(str(ord(c)) for c in transaction.description))
+        output.append("Códigos ASCII da palavra-chave:")
+        output.append(" ".join(str(ord(c)) for c in keyword.keyword))
+
+    return "<br>".join(output)

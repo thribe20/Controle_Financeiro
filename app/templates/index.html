@@ -1,0 +1,135 @@
+{% extends "layout.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">Dashboard Financeiro - {{ month }}/{{ year }}</h1>
+
+    <!-- Resumo financeiro -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card border-success h-100">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Receitas</h5>
+                    <p class="card-text display-6 text-success">
+                        R$ {{ "%.2f"|format(income) }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-danger h-100">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Despesas</h5>
+                    <p class="card-text display-6 text-danger">
+                        R$ {{ "%.2f"|format(expenses) }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-{{ 'success' if balance >= 0 else 'danger' }} h-100">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Saldo</h5>
+                    <p class="card-text display-6 text-{{ 'success' if balance >= 0 else 'danger' }}">
+                        R$ {{ "%.2f"|format(balance) }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráfico de categorias -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title">Distribuição de Despesas por Categoria</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="categoryChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ações rápidas -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title">Ações Rápidas</h5>
+                </div>
+                <div class="card-body">
+                    <a href="{{ url_for('transactions.upload') }}" class="btn btn-primary">
+                        <i class="bi bi-upload"></i> Importar OFX
+                    </a>
+                    <a href="{{ url_for('transactions.list_transactions') }}" class="btn btn-secondary">
+                        <i class="bi bi-list"></i> Ver Transações
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Verificar se temos dados para o gráfico
+    {% if category_data %}
+    // Dados para o gráfico de categorias
+    const ctx = document.getElementById('categoryChart').getContext('2d');
+
+    const data = {
+        labels: [
+            {% for category, color, amount in category_data %}
+            '{{ category }}',
+            {% endfor %}
+        ],
+        datasets: [{
+            data: [
+                {% for category, color, amount in category_data %}
+                {{ amount|abs }},
+                {% endfor %}
+            ],
+            backgroundColor: [
+                {% for category, color, amount in category_data %}
+                '{{ color }}',
+                {% endfor %}
+            ]
+        }]
+    };
+
+    const config = {
+        type: 'pie',
+        data: data,
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'right',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.raw;
+                            const total = context.dataset.data.reduce((acc, val) => acc + val, 0);
+                            const percentage = Math.round((value / total) * 100);
+                            return `R$ ${value.toFixed(2)} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    new Chart(ctx, config);
+    {% endif %}
+});
+</script>
+{% endblock %}

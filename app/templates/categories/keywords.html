@@ -1,0 +1,98 @@
+{% extends "layout.html" %}
+
+{% block title %}Palavras-chave da Categoria{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        Palavras-chave: <span style="color: {{ category.color }}">{{ category.name }}</span>
+                    </h5>
+                    <a href="{{ url_for('categories.index') }}" class="btn btn-sm btn-secondary">
+                        <i class="fas fa-arrow-left mr-1"></i> Voltar
+                    </a>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-4">
+                        Adicione palavras-chave para categorização automática de transações.
+                        <br>
+                        <strong>Tipo de correspondência:</strong>
+                        <br>
+                        <span class="badge badge-info">Contém</span> - A descrição da transação contém a palavra-chave
+                        <br>
+                        <span class="badge badge-primary">É exatamente</span> - A descrição da transação é exatamente igual à palavra-chave
+                    </p>
+
+                    <form method="post" class="mb-4">
+                        {{ form.hidden_tag() }}
+
+                        <div class="form-row align-items-end">
+                            <div class="col-md-5 mb-2">
+                                {{ form.keyword.label }}
+                                {{ form.keyword(class="form-control", placeholder="Ex: supermercado") }}
+                                {% if form.keyword.errors %}
+                                    {% for error in form.keyword.errors %}
+                                    <div class="text-danger">{{ error }}</div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                {{ form.match_type.label }}
+                                {{ form.match_type(class="form-control") }}
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                {{ form.submit(class="btn btn-primary btn-block") }}
+                            </div>
+                        </div>
+                    </form>
+
+                    <hr>
+
+                    {% if keywords %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Palavra-chave</th>
+                                    <th>Tipo de Correspondência</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for keyword in keywords %}
+                                <tr>
+                                    <td>{{ keyword.keyword }}</td>
+                                    <td>
+                                        {% if keyword.match_type == 'exact' %}
+                                        <span class="badge badge-primary">É exatamente</span>
+                                        {% else %}
+                                        <span class="badge badge-info">Contém</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <form method="post" action="{{ url_for('categories.delete_keyword', id=keyword.id) }}" class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-danger"
+                                                    onclick="return confirm('Tem certeza que deseja excluir esta palavra-chave?')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        Nenhuma palavra-chave cadastrada para esta categoria.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

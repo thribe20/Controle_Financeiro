@@ -4,209 +4,398 @@
 
 {% block styles %}
 <style>
-    .report-card {
-        transition: transform 0.2s;
-        margin-bottom: 20px;
-    }
-    .report-card:hover {
-        transform: translateY(-5px);
-    }
-    .report-icon {
-        font-size: 2.5rem;
-        color: #6c757d;
-        margin-bottom: 15px;
-    }
+  .kpi-card {
+    transition: all 0.3s ease;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .kpi-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+  }
+
+  .kpi-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .kpi-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+  }
+
+  .kpi-title {
+    font-size: 0.9rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .chart-container {
+    height: 300px;
+    position: relative;
+    margin-bottom: 2rem;
+  }
+
+  .change-indicator {
+    font-size: 0.85rem;
+    padding: 3px 8px;
+    border-radius: 12px;
+    margin-left: 10px;
+  }
+
+  .positive-change {
+    background-color: rgba(40, 167, 69, 0.2);
+    color: #28a745;
+  }
+
+  .negative-change {
+    background-color: rgba(220, 53, 69, 0.2);
+    color: #dc3545;
+  }
+
+  .neutral-change {
+    background-color: rgba(108, 117, 125, 0.2);
+    color: #6c757d;
+  }
+
+  .top-category {
+    padding: 8px 15px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    background-color: #f8f9fa;
+  }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="fas fa-chart-bar me-2"></i> Relatórios</h2>
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Relatórios Financeiros</h1>
 
-        <div class="btn-group">
-            <a href="{{ url_for('reports.export_csv', year=year) }}" class="btn btn-success">
-                <i class="fas fa-file-excel me-1"></i> Exportar CSV
-            </a>
+    <form class="form-inline" method="get">
+      <div class="form-group mr-2">
+        <label for="year" class="mr-2">Ano:</label>
+        <select class="form-control" id="year" name="year" onchange="this.form.submit()">
+          {% for year in years %}
+          <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>{{ year }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="row mb-4" id="kpi-container">
+    <div class="col-md-4 mb-3">
+      <div class="kpi-card card bg-white">
+        <div class="card-body text-center p-4">
+          <div class="kpi-icon text-success">
+            <i class="fas fa-coins"></i>
+          </div>
+          <div class="kpi-value" id="income-value">--</div>
+          <div class="d-flex justify-content-center align-items-center">
+            <div class="kpi-title">Receitas</div>
+            <div class="change-indicator" id="income-change"></div>
+          </div>
         </div>
+      </div>
     </div>
 
-    <!-- Formulário de filtro -->
-    <div class="card mb-4">
+    <div class="col-md-4 mb-3">
+      <div class="kpi-card card bg-white">
+        <div class="card-body text-center p-4">
+          <div class="kpi-icon text-danger">
+            <i class="fas fa-shopping-cart"></i>
+          </div>
+          <div class="kpi-value" id="expenses-value">--</div>
+          <div class="d-flex justify-content-center align-items-center">
+            <div class="kpi-title">Despesas</div>
+            <div class="change-indicator" id="expenses-change"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4 mb-3">
+      <div class="kpi-card card bg-white">
+        <div class="card-body text-center p-4">
+          <div class="kpi-icon text-primary">
+            <i class="fas fa-balance-scale"></i>
+          </div>
+          <div class="kpi-value" id="balance-value">--</div>
+          <div class="kpi-title">Saldo</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row -->
+  <div class="row mb-4">
+    <!-- Monthly Spending Chart -->
+    <div class="col-lg-8 mb-4">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Evolução mensal</h5>
+        </div>
         <div class="card-body">
-            <form method="get" action="{{ url_for('reports.index') }}" class="row g-3">
-                <div class="col-md-6">
-                    {{ form.year.label(class="form-label") }}
-                    {{ form.year(class="form-select") }}
-                </div>
-                <div class="col-md-6">
-                    {{ form.month.label(class="form-label") }}
-                    {{ form.month(class="form-select") }}
-                </div>
-                <div class="col-12 text-end">
-                    {{ form.submit(class="btn btn-primary") }}
-                </div>
-            </form>
+          <div class="chart-container">
+            <canvas id="monthlyChart"></canvas>
+          </div>
         </div>
+      </div>
     </div>
 
-    <!-- Cards de relatórios -->
-    <div class="row">
-        <!-- Despesas Mensais -->
-        <div class="col-md-6">
-            <div class="card report-card h-100">
-                <div class="card-body text-center">
-                    <div class="report-icon">
-                        <i class="fas fa-chart-column"></i>
-                    </div>
-                    <h5 class="card-title">Despesas Mensais</h5>
-                    <p class="card-text text-muted">
-                        Visualize suas despesas mensais categorizadas ao longo do tempo.
-                    </p>
-                    <a href="#" class="btn btn-primary view-report" data-report="monthly-expenses" data-year="{{ year }}">
-                        Visualizar Relatório
-                    </a>
-                </div>
-            </div>
+    <!-- Category Spending Chart -->
+    <div class="col-lg-4 mb-4">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Gastos por categoria</h5>
         </div>
-
-        <!-- Distribuição por Categoria -->
-        <div class="col-md-6">
-            <div class="card report-card h-100">
-                <div class="card-body text-center">
-                    <div class="report-icon">
-                        <i class="fas fa-chart-pie"></i>
-                    </div>
-                    <h5 class="card-title">Distribuição por Categoria</h5>
-                    <p class="card-text text-muted">
-                        Veja como suas despesas estão distribuídas entre as diferentes categorias.
-                    </p>
-                    <a href="#" class="btn btn-primary view-report" data-report="category-breakdown" data-year="{{ year }}" data-month="{{ request.args.get('month', '0') }}">
-                        Visualizar Relatório
-                    </a>
-                </div>
-            </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="categoryChart"></canvas>
+          </div>
         </div>
-
-        <!-- Receitas vs Despesas -->
-        <div class="col-md-6">
-            <div class="card report-card h-100">
-                <div class="card-body text-center">
-                    <div class="report-icon">
-                        <i class="fas fa-chart-line"></i>
-                    </div>
-                    <h5 class="card-title">Receitas vs Despesas</h5>
-                    <p class="card-text text-muted">
-                        Compare suas receitas e despesas ao longo do tempo.
-                    </p>
-                    <a href="#" class="btn btn-primary view-report" data-report="income-vs-expenses" data-year="{{ year }}">
-                        Visualizar Relatório
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        <!-- Resumo Detalhado -->
-        <div class="col-md-6">
-            <div class="card report-card h-100">
-                <div class="card-body text-center">
-                    <div class="report-icon">
-                        <i class="fas fa-table"></i>
-                    </div>
-                    <h5 class="card-title">Resumo Detalhado</h5>
-                    <p class="card-text text-muted">
-                        Veja um resumo detalhado de suas finanças com tabelas e gráficos.
-                    </p>
-                    <a href="{{ url_for('reports.summary', year=year) }}" class="btn btn-primary">
-                        Visualizar Relatório
-                    </a>
-                </div>
-            </div>
-        </div>
+      </div>
     </div>
+  </div>
 
-    <!-- Modal para visualização de relatórios -->
-    <div class="modal fade" id="reportModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="reportModalLabel">Visualização de Relatório</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-                </div>
-                <div class="modal-body text-center">
-                    <div class="spinner-border text-primary mb-4" role="status" id="reportLoading">
-                        <span class="visually-hidden">Carregando...</span>
-                    </div>
-                    <img id="reportImage" class="img-fluid d-none" alt="Relatório">
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                </div>
-            </div>
+  <!-- Top Categories -->
+  <div class="row mb-4">
+    <div class="col-md-12">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Top 5 Categorias de Despesa</h5>
         </div>
+        <div class="card-body">
+          <div id="top-categories-container">
+            <div class="text-center py-4">
+              <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Carregando...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+  </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js"></script>
+
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Evento para botões de visualização de relatório
-    const reportButtons = document.querySelectorAll('.view-report');
-    const reportModal = new bootstrap.Modal(document.getElementById('reportModal'));
-    const reportImage = document.getElementById('reportImage');
-    const reportLoading = document.getElementById('reportLoading');
-    const modalTitle = document.getElementById('reportModalLabel');
+  // Formatter para valores monetários
+  function formatCurrency(value) {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
+  }
 
-    reportButtons.forEach(button => {
-        button.addEventListener('click', function(e) {
-            e.preventDefault();
+  // Formatar números com separador de milhares
+  function formatNumber(value) {
+    return new Intl.NumberFormat('pt-BR').format(value);
+  }
 
-            // Obter dados do relatório
-            const reportType = this.dataset.report;
-            const year = this.dataset.year;
-            const month = this.dataset.month || null;
+  // Inicializar gráficos
+  document.addEventListener('DOMContentLoaded', function() {
+    const selectedYear = document.getElementById('year').value;
 
-            // Mostrar modal com spinner
-            reportImage.classList.add('d-none');
-            reportLoading.classList.remove('d-none');
+    // Carregar KPIs
+    loadKPIs(selectedYear);
 
-            // Definir título do modal
-            switch(reportType) {
-                case 'monthly-expenses':
-                    modalTitle.textContent = `Despesas Mensais (${year})`;
-                    break;
-                case 'category-breakdown':
-                    const monthText = month && month != '0' ?
-                        ` - Mês ${month}` : '';
-                    modalTitle.textContent = `Distribuição por Categoria (${year}${monthText})`;
-                    break;
-                case 'income-vs-expenses':
-                    modalTitle.textContent = `Receitas vs Despesas (${year})`;
-                    break;
-                default:
-                    modalTitle.textContent = 'Visualização de Relatório';
+    // Carregar dados para os gráficos
+    loadMonthlyData(selectedYear);
+    loadCategoryData(selectedYear);
+  });
+
+  // Carregar dados dos KPIs
+  function loadKPIs(year) {
+    fetch(`/reports/data/kpi_summary?year=${year}`)
+      .then(response => response.json())
+      .then(data => {
+        // Preencher valores KPI
+        document.getElementById('income-value').textContent = formatCurrency(data.income);
+        document.getElementById('expenses-value').textContent = formatCurrency(data.expenses);
+        document.getElementById('balance-value').textContent = formatCurrency(data.balance);
+
+        // Preencher indicadores de mudança
+        const incomeChange = document.getElementById('income-change');
+        if (data.income_change > 0) {
+          incomeChange.textContent = `+${data.income_change.toFixed(1)}%`;
+          incomeChange.className = 'change-indicator positive-change';
+        } else if (data.income_change < 0) {
+          incomeChange.textContent = `${data.income_change.toFixed(1)}%`;
+          incomeChange.className = 'change-indicator negative-change';
+        } else {
+          incomeChange.textContent = `0%`;
+          incomeChange.className = 'change-indicator neutral-change';
+        }
+
+        const expensesChange = document.getElementById('expenses-change');
+        if (data.expense_change > 0) {
+          expensesChange.textContent = `+${data.expense_change.toFixed(1)}%`;
+          expensesChange.className = 'change-indicator negative-change';
+        } else if (data.expense_change < 0) {
+          expensesChange.textContent = `${data.expense_change.toFixed(1)}%`;
+          expensesChange.className = 'change-indicator positive-change';
+        } else {
+          expensesChange.textContent = `0%`;
+          expensesChange.className = 'change-indicator neutral-change';
+        }
+
+        // Preencher top categorias
+        const topCategoriesContainer = document.getElementById('top-categories-container');
+        if (data.top_categories && data.top_categories.length > 0) {
+          let html = '';
+          data.top_categories.forEach(category => {
+            html += `
+              <div class="top-category">
+                <span>${category.name}</span>
+                <span class="font-weight-bold">${formatCurrency(category.total)}</span>
+              </div>
+            `;
+          });
+          topCategoriesContainer.innerHTML = html;
+        } else {
+          topCategoriesContainer.innerHTML = '<div class="text-center py-3">Nenhum dado disponível</div>';
+        }
+      })
+      .catch(error => {
+        console.error('Erro ao carregar KPIs:', error);
+      });
+  }
+
+  // Carregar dados mensais
+  function loadMonthlyData(year) {
+    fetch(`/reports/data/monthly_spending?year=${year}`)
+      .then(response => response.json())
+      .then(data => {
+        const labels = data.map(item => item.month_name.substring(0, 3));
+        const expensesData = data.map(item => item.expenses);
+        const incomeData = data.map(item => item.income);
+
+        const ctx = document.getElementById('monthlyChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'Receitas',
+                backgroundColor: 'rgba(40, 167, 69, 0.2)',
+                borderColor: '#28a745',
+                data: incomeData,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                fill: true
+              },
+              {
+                label: 'Despesas',
+                backgroundColor: 'rgba(220, 53, 69, 0.2)',
+                borderColor: '#dc3545',
+                data: expensesData,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                fill: true
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            legend: {
+              position: 'bottom'
+            },
+            tooltips: {
+              callbacks: {
+                label: function(tooltipItem, data) {
+                  let label = data.datasets[tooltipItem.datasetIndex].label || '';
+                  if (label) {
+                    label += ': ';
+                  }
+                  label += formatCurrency(tooltipItem.yLabel);
+                  return label;
+                }
+              }
+            },
+            scales: {
+              yAxes: [{
+                ticks: {
+                  beginAtZero: true,
+                  callback: function(value) {
+                    return formatCurrency(value);
+                  }
+                }
+              }]
             }
-
-            // Mostrar modal
-            reportModal.show();
-
-            // Construir URL
-            let url = `{{ url_for('reports.index') }}../${reportType}?year=${year}`;
-            if (month && month != '0') {
-                url += `&month=${month}`;
-            }
-
-            // Atualizar imagem quando carregar
-            reportImage.onload = function() {
-                reportLoading.classList.add('d-none');
-                reportImage.classList.remove('d-none');
-            };
-
-            // Carregar imagem
-            reportImage.src = url;
+          }
         });
-    });
-});
+      })
+      .catch(error => {
+        console.error('Erro ao carregar dados mensais:', error);
+      });
+  }
+
+  // Carregar dados de categoria
+  function loadCategoryData(year) {
+    fetch(`/reports/data/category_spending?year=${year}`)
+      .then(response => response.json())
+      .then(data => {
+        if (data.length === 0) {
+          document.getElementById('categoryChart').parentElement.innerHTML =
+            '<div class="text-center py-5">Nenhum dado disponível</div>';
+          return;
+        }
+
+        const labels = data.map(item => item.name);
+        const values = data.map(item => item.value);
+        const colors = data.map(item => item.color);
+
+        const ctx = document.getElementById('categoryChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: labels,
+            datasets: [{
+              data: values,
+              backgroundColor: colors,
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            legend: {
+              position: 'bottom',
+              labels: {
+                boxWidth: 12
+              }
+            },
+            tooltips: {
+              callbacks: {
+                label: function(tooltipItem, data) {
+                  const dataset = data.datasets[tooltipItem.datasetIndex];
+                  const total = dataset.data.reduce((acc, curr) => acc + curr, 0);
+                  const currentValue = dataset.data[tooltipItem.index];
+                  const percentage = ((currentValue / total) * 100).toFixed(1);
+                  return `${data.labels[tooltipItem.index]}: ${formatCurrency(currentValue)} (${percentage}%)`;
+                }
+              }
+            }
+          }
+        });
+      })
+      .catch(error => {
+        console.error('Erro ao carregar dados de categoria:', error);
+      });
+  }
 </script>
 {% endblock %}

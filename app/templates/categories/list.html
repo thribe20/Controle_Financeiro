@@ -1,0 +1,141 @@
+{% extends "layout.html" %}
+
+{% block title %}Categorias{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Categorias</h1>
+        <a href="{{ url_for('categories.create_category') }}" class="btn btn-success">
+            <i class="fas fa-plus mr-1"></i> Nova Categoria
+        </a>
+        <a href="{{ url_for('transactions.recategorize_all') }}" class="btn btn-warning">
+            <i class="fas fa-magic mr-1"></i> Recategorizar Todas
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Despesas</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for category in categories %}
+                            {% if category.is_expense %}
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="badge badge-pill mr-2" style="background-color: {{ category.color }}; width: 20px; height: 20px;">&nbsp;</span>
+                                        <strong>{{ category.name }}</strong>
+                                    </div>
+                                    <div>
+                                        <a href="{{ url_for('categories.manage_keywords', id=category.id) }}" class="btn btn-sm btn-info mr-1">
+                                            <i class="fas fa-tags"></i> Palavras-chave
+                                        </a>
+                                        <a href="{{ url_for('categories.edit_category', id=category.id) }}" class="btn btn-sm btn-primary mr-1">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-danger"
+                                                data-toggle="modal" data-target="#deleteModal"
+                                                data-id="{{ category.id }}"
+                                                data-name="{{ category.name }}">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                {% if category.description %}
+                                <small class="text-muted">{{ category.description }}</small>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Receitas</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for category in categories %}
+                            {% if not category.is_expense %}
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="badge badge-pill mr-2" style="background-color: {{ category.color }}; width: 20px; height: 20px;">&nbsp;</span>
+                                        <strong>{{ category.name }}</strong>
+                                    </div>
+                                    <div>
+                                        <a href="{{ url_for('categories.manage_keywords', id=category.id) }}" class="btn btn-sm btn-info mr-1">
+                                            <i class="fas fa-tags"></i> Palavras-chave
+                                        </a>
+                                        <a href="{{ url_for('categories.edit_category', id=category.id) }}" class="btn btn-sm btn-primary mr-1">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-danger"
+                                                data-toggle="modal" data-target="#deleteModal"
+                                                data-id="{{ category.id }}"
+                                                data-name="{{ category.name }}">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                {% if category.description %}
+                                <small class="text-muted">{{ category.description }}</small>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmação para excluir -->
+<div class="modal fade" id="deleteModal" tabindex="-1" role="dialog" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirmar exclusão</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir a categoria <strong id="categoryName"></strong>?</p>
+                <p class="text-danger">Esta ação não pode ser desfeita e removerá todas as associações de transações a esta categoria.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                <form id="deleteForm" method="post" action="">
+                    <button type="submit" class="btn btn-danger">Excluir</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        $('#deleteModal').on('show.bs.modal', function (event) {
+            var button = $(event.relatedTarget);
+            var id = button.data('id');
+            var name = button.data('name');
+            var modal = $(this);
+
+            modal.find('#categoryName').text(name);
+            modal.find('#deleteForm').attr('action', '{{ url_for("categories.delete_category", id=0) }}'.replace('0', id));
+        });
+    });
+</script>
+{% endblock %}

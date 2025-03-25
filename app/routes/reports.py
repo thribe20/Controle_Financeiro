@@ -1,181 +1,238 @@
-from flask import Blueprint, render_template, request, send_file, make_response, flash, redirect, url_for
-from flask_login import login_required, current_user
-from io import BytesIO
-from datetime import datetime
-import os
-from app.services.report_service import ReportService
-from app.forms.report_forms import ReportFilterForm
+from flask import Blueprint, render_template, request, jsonify
+from sqlalchemy import func, extract
+from datetime import datetime, timedelta
+import calendar
+from app import db
+from app.models import Transaction, Category
 
-bp = Blueprint('reports', __name__, url_prefix='/reports')
+reports_bp = Blueprint('reports', __name__, url_prefix='/reports')
 
 
-@bp.route('/')
-@login_required
+@reports_bp.route('/')
 def index():
     """Página principal de relatórios"""
-    form = ReportFilterForm()
+    # Obter anos disponíveis para o filtro
+    years = db.session.query(Transaction.year).distinct().order_by(Transaction.year.desc()).all()
+    years = [y[0] for y in years]
 
-    # Obter ano atual para valores padrão
+    # Se não houver anos nos dados, use o ano atual
+    if not years:
+        years = [datetime.now().year]
+
+    # Usar o ano atual como padrão, ou o mais recente disponível
     current_year = datetime.now().year
+    selected_year = request.args.get('year', type=int, default=current_year if current_year in years else years[0])
 
-    # Preencher anos disponíveis
-    from app.models.transaction import Transaction
-    years = Transaction.query.with_entities(Transaction.year).filter_by(
-        user_id=current_user.id
-    ).distinct().order_by(Transaction.year.desc()).all()
-
-    form.year.choices = [(y[0], str(y[0])) for y in years] if years else [(current_year, str(current_year))]
-
-    # Obter parâmetros da URL
-    year = request.args.get('year', type=int)
-    if not year and years:
-        year = years[0][0]
-    elif not year:
-        year = current_year
-
-    # Aplicar aos campos do formulário
-    form.year.data = year
-
-    return render_template(
-        'reports/index.html',
-        title='Relatórios',
-        form=form,
-        year=year
-    )
+    return render_template('reports/index.html',
+                           years=years,
+                           selected_year=selected_year)
 
 
-@bp.route('/monthly-expenses')
-@login_required
-def monthly_expenses():
-    """Relatório de despesas mensais"""
-    # Obter parâmetros
+@reports_bp.route('/data/category_spending')
+def category_spending():
+    """Retorna dados de gastos por categoria para o ano selecionado"""
     year = request.args.get('year', type=int, default=datetime.now().year)
 
-    # Gerar o gráfico
-    report_service = ReportService(current_user)
-    image_data = report_service.plot_monthly_expenses(year)
+    # Consulta para obter gastos por categoria (apenas despesas - valores negativos)
+    category_data = db.session.query(
+        Category.name,
+        Category.color,
+        func.sum(Transaction.amount).label('total')
+    ).join(
+        Transaction,
+        Transaction.category_id == Category.id
+    ).filter(
+        Transaction.year == year,
+        Transaction.amount < 0  # Apenas despesas
+    ).group_by(
+        Category.id
+    ).order_by(
+        func.sum(Transaction.amount)
+    ).all()
 
-    # Retornar a imagem como resposta
-    response = make_response(image_data)
-    response.headers.set('Content-Type', 'image/png')
-    return response
+    # Transformar em lista para JSON
+    result = []
+    for name, color, total in category_data:
+        result.append({
+            'name': name,
+            'color': color,
+            'value': abs(float(total))  # Converter para positivo para o gráfico
+        })
+
+    # Adicionar categoria "Sem categoria" se houver gastos não categorizados
+    uncategorized = db.session.query(
+        func.sum(Transaction.amount).label('total')
+    ).filter(
+        Transaction.year == year,
+        Transaction.amount < 0,  # Apenas despesas
+        Transaction.category_id == None
+    ).scalar() or 0
+
+    if uncategorized < 0:  # Se houver gastos não categorizados
+        result.append({
+            'name': 'Sem categoria',
+            'color': '#CCCCCC',
+            'value': abs(float(uncategorized))
+        })
+
+    return jsonify(result)
 
 
-@bp.route('/category-breakdown')
-@login_required
-def category_breakdown():
-    """Relatório de distribuição por categoria"""
-    # Obter parâmetros
-    year = request.args.get('year', type=int, default=datetime.now().year)
-    month = request.args.get('month', type=int)
-
-    # Gerar o gráfico
-    report_service = ReportService(current_user)
-    image_data = report_service.plot_category_breakdown(year, month)
-
-    # Retornar a imagem como resposta
-    response = make_response(image_data)
-    response.headers.set('Content-Type', 'image/png')
-    return response
-
-
-@bp.route('/income-vs-expenses')
-@login_required
-def income_vs_expenses():
-    """Relatório de receitas vs despesas"""
-    # Obter parâmetros
-    year = request.args.get('year', type=int, default=datetime.now().year)
-
-    # Gerar o gráfico
-    report_service = ReportService(current_user)
-    image_data = report_service.plot_income_vs_expenses(year)
-
-    # Retornar a imagem como resposta
-    response = make_response(image_data)
-    response.headers.set('Content-Type', 'image/png')
-    return response
-
-
-@bp.route('/summary')
-@login_required
-def summary():
-    """Resumo financeiro com tabelas"""
-    # Obter parâmetros
+@reports_bp.route('/data/monthly_spending')
+def monthly_spending():
+    """Retorna dados de gastos mensais para o ano selecionado"""
     year = request.args.get('year', type=int, default=datetime.now().year)
 
-    # Gerar resumo mensal
-    report_service = ReportService(current_user)
-    monthly_df = report_service.generate_monthly_summary(year, as_dataframe=True)
+    # Inicializar array com todos os meses
+    monthly_data = []
+    for month in range(1, 13):
+        monthly_data.append({
+            'month': month,
+            'month_name': calendar.month_name[month],
+            'expenses': 0,
+            'income': 0
+        })
 
-    # Gerar resumo por categoria
-    category_df = report_service.generate_category_summary(year, as_dataframe=True)
+    # Consulta para obter gastos mensais
+    monthly_expenses = db.session.query(
+        Transaction.month,
+        func.sum(Transaction.amount).label('total')
+    ).filter(
+        Transaction.year == year,
+        Transaction.amount < 0  # Apenas despesas
+    ).group_by(
+        Transaction.month
+    ).all()
 
-    # Verificar se há dados
-    if monthly_df.empty:
-        flash('Não há dados para o período selecionado.', 'warning')
-        return redirect(url_for('reports.index'))
+    # Preencher dados de despesas
+    for month, total in monthly_expenses:
+        if 1 <= month <= 12:  # Verificar se o mês está no intervalo válido
+            monthly_data[month - 1]['expenses'] = abs(float(total))  # Converter para positivo
 
-    # Converter DataFrames para HTML para exibição
-    monthly_table = monthly_df.to_html(classes='table table-striped', index=False)
-    category_table = category_df.to_html(classes='table table-striped', index=False) if not category_df.empty else None
+    # Consulta para obter receitas mensais
+    monthly_income = db.session.query(
+        Transaction.month,
+        func.sum(Transaction.amount).label('total')
+    ).filter(
+        Transaction.year == year,
+        Transaction.amount > 0  # Apenas receitas
+    ).group_by(
+        Transaction.month
+    ).all()
 
-    return render_template(
-        'reports/summary.html',
-        title=f'Resumo Financeiro - {year}',
-        monthly_table=monthly_table,
-        category_table=category_table,
-        year=year
-    )
+    # Preencher dados de receitas
+    for month, total in monthly_income:
+        if 1 <= month <= 12:  # Verificar se o mês está no intervalo válido
+            monthly_data[month - 1]['income'] = float(total)
+
+    return jsonify(monthly_data)
 
 
-@bp.route('/export-csv')
-@login_required
-def export_csv():
-    """Exportar transações para CSV"""
-    from app.services.transaction_service import TransactionService
-    import csv
+@reports_bp.route('/data/kpi_summary')
+def kpi_summary():
+    """Retorna resumo dos principais indicadores financeiros"""
+    year = request.args.get('year', type=int, default=datetime.now().year)
+    month = request.args.get('month', type=int)  # Opcional
 
-    # Obter parâmetros
-    year = request.args.get('year', type=int)
-    month = request.args.get('month', type=int)
+    # Base de filtros
+    filters = [Transaction.year == year]
 
-    # Obter transações
-    tx_service = TransactionService(current_user)
-    transactions = tx_service.get_by_period(year, month)
-
-    if not transactions:
-        flash('Não há transações para o período selecionado.', 'warning')
-        return redirect(url_for('reports.index'))
-
-    # Criar CSV na memória
-    output = BytesIO()
-    writer = csv.writer(output)
-
-    # Escrever cabeçalho
-    writer.writerow(['Data', 'Descrição', 'Valor', 'Categoria', 'Observações'])
-
-    # Escrever transações
-    for tx in transactions:
-        writer.writerow([
-            tx.date.strftime('%d/%m/%Y'),
-            tx.description,
-            tx.amount,
-            tx.category.name if tx.category else 'Sem Categoria',
-            tx.notes or ''
-        ])
-
-    # Preparar resposta
-    output.seek(0)
-
-    # Nome do arquivo
-    filename = f"transacoes_{year}"
+    # Se o mês for especificado, adicionar ao filtro
     if month:
-        filename += f"_{month}"
-    filename += ".csv"
+        filters.append(Transaction.month == month)
+        period_name = f"{calendar.month_name[month]} {year}"
+    else:
+        period_name = f"{year}"
 
-    return send_file(
-        output,
-        as_attachment=True,
-        download_name=filename,
-        mimetype='text/csv'
-    )
+    # Total de despesas
+    expenses = db.session.query(func.sum(Transaction.amount)).filter(
+        *filters, Transaction.amount < 0
+    ).scalar() or 0
+
+    # Total de receitas
+    income = db.session.query(func.sum(Transaction.amount)).filter(
+        *filters, Transaction.amount > 0
+    ).scalar() or 0
+
+    # Saldo
+    balance = income + expenses  # expenses já é negativo
+
+    # Mês anterior para comparação
+    if month:
+        # Se mês atual é janeiro, mês anterior é dezembro do ano anterior
+        prev_month = 12 if month == 1 else month - 1
+        prev_year = year - 1 if month == 1 else year
+
+        prev_filters = [Transaction.year == prev_year, Transaction.month == prev_month]
+
+        prev_expenses = db.session.query(func.sum(Transaction.amount)).filter(
+            *prev_filters, Transaction.amount < 0
+        ).scalar() or 0
+
+        prev_income = db.session.query(func.sum(Transaction.amount)).filter(
+            *prev_filters, Transaction.amount > 0
+        ).scalar() or 0
+
+        # Calcular variações percentuais
+        if prev_expenses != 0:
+            expense_change = ((abs(expenses) - abs(prev_expenses)) / abs(prev_expenses)) * 100
+        else:
+            expense_change = 0
+
+        if prev_income != 0:
+            income_change = ((income - prev_income) / prev_income) * 100
+        else:
+            income_change = 0
+    else:
+        # Comparar com ano anterior
+        prev_filters = [Transaction.year == year - 1]
+
+        prev_expenses = db.session.query(func.sum(Transaction.amount)).filter(
+            *prev_filters, Transaction.amount < 0
+        ).scalar() or 0
+
+        prev_income = db.session.query(func.sum(Transaction.amount)).filter(
+            *prev_filters, Transaction.amount > 0
+        ).scalar() or 0
+
+        # Calcular variações percentuais
+        if prev_expenses != 0:
+            expense_change = ((abs(expenses) - abs(prev_expenses)) / abs(prev_expenses)) * 100
+        else:
+            expense_change = 0
+
+        if prev_income != 0:
+            income_change = ((income - prev_income) / prev_income) * 100
+        else:
+            income_change = 0
+
+    # Top categorias de despesa
+    top_categories = db.session.query(
+        Category.name,
+        func.sum(Transaction.amount).label('total')
+    ).join(
+        Transaction,
+        Transaction.category_id == Category.id
+    ).filter(
+        *filters,
+        Transaction.amount < 0  # Apenas despesas
+    ).group_by(
+        Category.id
+    ).order_by(
+        func.sum(Transaction.amount)
+    ).limit(5).all()
+
+    top_categories_data = [
+        {'name': name, 'total': abs(float(total))}
+        for name, total in top_categories
+    ]
+
+    return jsonify({
+        'period': period_name,
+        'expenses': abs(float(expenses)),
+        'income': float(income),
+        'balance': float(balance),
+        'expense_change': float(expense_change),
+        'income_change': float(income_change),
+        'top_categories': top_categories_data
+    })
