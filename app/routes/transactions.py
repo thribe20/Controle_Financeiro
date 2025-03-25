@@ -64,8 +64,38 @@ def list_transactions():
 
 @transaction_bp.route('/upload', methods=['GET', 'POST'])
 def upload():
-    # código existente
-    pass
+    """Upload e importação de arquivo OFX"""
+    form = UploadForm()
+
+    if form.validate_on_submit():
+        try:
+            file = form.file.data
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+
+            # Importar transações
+            new_transactions = import_ofx(filepath)
+
+            # Categorizar transações
+            categorizadas = 0
+            for transaction in new_transactions:
+                if categorize_transaction(transaction):
+                    categorizadas += 1
+                db.session.add(transaction)
+
+            db.session.commit()
+
+            flash(
+                f'{len(new_transactions)} transações importadas com sucesso! {categorizadas} foram categorizadas automaticamente.',
+                'success')
+            return redirect(url_for('transactions.list_transactions'))
+
+        except Exception as e:
+            flash(f'Erro ao importar arquivo: {str(e)}', 'danger')
+
+    # Certifique-se de que esta linha esteja presente e não indentada dentro do bloco if
+    return render_template('transactions/upload.html', form=form)
 
 
 @transaction_bp.route('/<int:id>/category', methods=['POST'])
